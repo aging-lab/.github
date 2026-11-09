@@ -96,6 +96,7 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .legend { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; font-size: 12px; color: var(--ink-3); }
 .legend span { display: inline-flex; align-items: center; gap: 7px; }
 .legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.legend b { font-weight: inherit; }
 </style>
 </head>
 <body>
@@ -113,25 +114,50 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
     <div class="anno out" id="annoOut">
         <span class="k" id="outK">Baseline</span>
         <strong id="outT">투여 전 세포 상태</strong>
-        <span class="s" id="outS">실측 · measured</span>
+        <span class="s" id="outS">실측</span>
         <div class="legend" id="legend">
-            <span><i style="background:var(--up)"></i>발현 증가</span>
-            <span><i style="background:var(--down)"></i>발현 감소</span>
+            <span><i style="background:var(--up)"></i><b data-s="up">발현 증가</b></span>
+            <span><i style="background:var(--down)"></i><b data-s="down">발현 감소</b></span>
         </div>
     </div>
 
     <div class="vo-steps">
-        <div class="vo-step"><div class="n">01 INPUT</div><div class="t">물질 · 용량 입력</div><div class="bar"><i></i></div></div>
-        <div class="vo-step"><div class="n">02 GENERATE</div><div class="t">오믹스 생성</div><div class="bar"><i></i></div></div>
-        <div class="vo-step"><div class="n">03 INTERPRET</div><div class="t">순위 · 근거 해석</div><div class="bar"><i></i></div></div>
+        <div class="vo-step"><div class="n">01 INPUT</div><div class="t" data-s="step0">물질 · 용량 입력</div><div class="bar"><i></i></div></div>
+        <div class="vo-step"><div class="n">02 GENERATE</div><div class="t" data-s="step1">오믹스 생성</div><div class="bar"><i></i></div></div>
+        <div class="vo-step"><div class="n">03 INTERPRET</div><div class="t" data-s="step2">순위 · 근거 해석</div><div class="bar"><i></i></div></div>
     </div>
 </div>
 
 <script>
 (function () {
     'use strict';
-    var DARK = new URLSearchParams(location.search).get('theme') === 'dark';
+    var Q = new URLSearchParams(location.search);
+    var DARK = Q.get('theme') === 'dark';
     if (DARK) document.documentElement.classList.add('dark');
+
+    // copy: ko = aginglab.com default, en = the site's data-en strings
+    var STR = {
+        ko: {
+            captions: ['투여 전 · 기준 세포 상태', '물질 투여 · 용량과 시간 입력', 'GeroEngine · 유전자 변화 생성', '해석 · 효과 경로와 주의 신호'],
+            labels: ['효과 경로 ↑', '주의 신호'],
+            step0: '물질 · 용량 입력', step1: '오믹스 생성', step2: '순위 · 근거 해석',
+            up: '발현 증가', down: '발현 감소',
+            base: ['Baseline', '투여 전 세포 상태', '실측'],
+            out: ['Output', '투여 후 유전자 변화 Δ', 'AI 생성']
+        },
+        en: {
+            captions: ['Before treatment · baseline cell', 'Compound in · dose & time', 'GeroEngine · generating gene changes', 'Interpret · effect pathways & cautions'],
+            labels: ['Effect pathway ↑', 'Caution signal'],
+            step0: 'Compound · dose', step1: 'Omics generated', step2: 'Rank & evidence',
+            up: 'Expression up', down: 'Expression down',
+            base: ['Baseline', 'Baseline cell', 'Before treatment · measured'],
+            out: ['Output', 'Gene change Δ', 'After treatment · generated']
+        }
+    };
+    var LANG = STR[Q.get('lang')] ? Q.get('lang') : 'ko';
+    var S = STR[LANG];
+    document.documentElement.lang = LANG;
+    document.querySelectorAll('[data-s]').forEach(function (el) { el.textContent = S[el.getAttribute('data-s')]; });
 
     // canvas palette (light = values from hero.js)
     var TH = DARK ? {
@@ -163,8 +189,8 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
     var GA = Math.PI * (3 - Math.sqrt(5));
     var LOOP = 11.4;
     var T_DOSE = 1.6, T_ABSORB = 3.0, T_MORPH = 3.5, T_SCAN = 5.3, T_HOLD = 7.6, T_BACK = 9.6;
-    var CAPTIONS = ['투여 전 · 기준 세포 상태', '물질 투여 · 용량과 시간 입력', 'GeroEngine · 유전자 변화 생성', '해석 · 효과 경로와 주의 신호'];
-    var LABELS = ['효과 경로 ↑', '주의 신호'];
+    var CAPTIONS = S.captions;
+    var LABELS = S.labels;
 
     var seed = 11;
     function rnd() { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }
@@ -331,9 +357,8 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 
         annoIn.style.opacity = .3 + .7 * window_(t, T_DOSE - .4, T_MORPH + .2, .35);
         var isOut = t >= T_MORPH && t < T_BACK + .5;
-        outK.textContent = isOut ? 'Output' : 'Baseline';
-        outT.textContent = isOut ? '투여 후 유전자 변화 Δ' : '투여 전 세포 상태';
-        outS.textContent = isOut ? '생성 · generated' : '실측 · measured';
+        var o = isOut ? S.out : S.base;
+        outK.textContent = o[0]; outT.textContent = o[1]; outS.textContent = o[2];
         // dimmed only while the compound is going in; text swaps at T_MORPH and back after T_BACK
         annoOut.style.opacity = (.3 + .7 * (1 - window_(t, T_DOSE, T_MORPH, .35))) * fadeNear(t, [T_MORPH, T_BACK + .5]);
         legend.style.opacity = window_(t, T_SCAN, T_BACK + .5, .35);

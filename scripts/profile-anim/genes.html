@@ -43,6 +43,7 @@ canvas { display: block; width: 822px; height: 306px; border-radius: 14px; backg
 .legend { display: flex; gap: 20px; margin-top: 14px; font-size: 13px; color: var(--ink-3); align-items: center; }
 .legend span { display: inline-flex; align-items: center; gap: 8px; }
 .legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.legend b { font-weight: inherit; }
 .legend .src { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--ink-4); letter-spacing: .04em; }
 </style>
 </head>
@@ -56,25 +57,38 @@ canvas { display: block; width: 822px; height: 306px; border-radius: 14px; backg
         </div>
         <div class="seg" id="seg">
             <span class="thumb" id="thumb"></span>
-            <span class="b on">실측 마커</span>
-            <span class="b">가상오믹스</span>
+            <span class="b on" data-s="segM">실측 마커</span>
+            <span class="b" data-s="segV">가상오믹스</span>
         </div>
     </div>
     <canvas id="cv"></canvas>
     <div class="legend">
-        <span><i style="background:var(--marker);border-radius:50%"></i>실측 마커</span>
-        <span><i style="background:var(--up)"></i>발현 증가</span>
-        <span><i style="background:var(--down)"></i>발현 감소</span>
-        <span><i style="background:var(--off)"></i>관측되지 않음</span>
-        <span class="src">THE BLIND SPOT · 예시</span>
+        <span><i style="background:var(--marker);border-radius:50%"></i><b data-s="legM">실측 마커</b></span>
+        <span><i style="background:var(--up)"></i><b data-s="legUp">발현 증가</b></span>
+        <span><i style="background:var(--down)"></i><b data-s="legDown">발현 감소</b></span>
+        <span><i style="background:var(--off)"></i><b data-s="legOff">관측되지 않음</b></span>
+        <span class="src" data-s="src">THE BLIND SPOT · 예시</span>
     </div>
 </div>
 
 <script>
 (function () {
     'use strict';
-    var DARK = new URLSearchParams(location.search).get('theme') === 'dark';
+    var Q = new URLSearchParams(location.search);
+    var DARK = Q.get('theme') === 'dark';
     if (DARK) document.documentElement.classList.add('dark');
+
+    // copy: ko = aginglab.com default, en = the site's data-en strings
+    var STR = {
+        ko: { l0: '실측 마커로 보이는 유전자', l1: '가상오믹스로 보이는 유전자', segM: '실측 마커', segV: '가상오믹스',
+              legM: '실측 마커', legUp: '발현 증가', legDown: '발현 감소', legOff: '관측되지 않음', src: 'THE BLIND SPOT · 예시' },
+        en: { l0: 'genes visible with measured markers', l1: 'genes visible with virtual omics', segM: 'Measured markers', segV: 'Virtual omics',
+              legM: 'Measured marker', legUp: 'Expression up', legDown: 'Expression down', legOff: 'Not observed', src: 'THE BLIND SPOT · ILLUSTRATIVE' }
+    };
+    var LANG = STR[Q.get('lang')] ? Q.get('lang') : 'ko';
+    var S = STR[LANG];
+    document.documentElement.lang = LANG;
+    document.querySelectorAll('[data-s]').forEach(function (el) { el.textContent = S[el.getAttribute('data-s')]; });
     var C = DARK
         ? { off: '#22302a', up: '45,197,127', down: '143,163,154', downA: .6, marker: '#7be0ae', halo: '45,197,127', haloA: .22 }
         : { off: '#dfe6e2', up: '10,133,84', down: '120,142,133', downA: .7, marker: '#076b45', halo: '16,165,100', haloA: .16 };
@@ -157,7 +171,7 @@ canvas { display: block; width: 822px; height: 306px; border-radius: 14px; backg
         drawGenes(prog);
         countEl.textContent = Math.round(MARKERS + (TOTAL - MARKERS) * prog).toLocaleString('en-US');
         var virt = t >= UP && t < DOWN;
-        lbl.textContent = virt ? '가상오믹스로 보이는 유전자' : '실측 마커로 보이는 유전자';
+        lbl.textContent = virt ? S.l1 : S.l0;
         btns[0].classList.toggle('on', !virt);
         btns[1].classList.toggle('on', virt);
         var k = thumbAt(t);

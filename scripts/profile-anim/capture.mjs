@@ -1,5 +1,5 @@
 // Render an animation page frame-by-frame with headless Chrome (CDP, no dependencies).
-// usage: node capture.mjs <page.html> <light|dark> <outDir> <width> <height> <fps> <scale>
+// usage: node capture.mjs <page.html> <query, e.g. theme=dark&lang=en> <outDir> <width> <height> <fps> <scale>
 // The page must expose window.READY, window.LOOP (seconds) and window.renderAt(t).
 import { spawn } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const [page, theme, outDir, W, H, FPS, SCALE] = process.argv.slice(2);
+const [page, query, outDir, W, H, FPS, SCALE] = process.argv.slice(2);
 const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const PORT = 9300 + Math.floor(Math.random() * 500);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -50,7 +50,7 @@ try {
 
     await send('Page.enable');
     await send('Emulation.setDeviceMetricsOverride', { width: +W, height: +H, deviceScaleFactor: +SCALE, mobile: false });
-    await send('Page.navigate', { url: `${pathToFileURL(resolve(page)).href}?theme=${theme}` });
+    await send('Page.navigate', { url: `${pathToFileURL(resolve(page)).href}?${query}` });
 
     for (let i = 0; i < 150; i++) {
         if (await evaluate('window.READY === true').catch(() => false)) break;
@@ -67,7 +67,7 @@ try {
         });
         writeFileSync(join(outDir, `${String(f).padStart(4, '0')}.png`), Buffer.from(shot.data, 'base64'));
     }
-    console.log(`${page} [${theme}]: ${frames} frames (${loop}s @ ${FPS}fps) -> ${outDir}`);
+    console.log(`${page} [${query}]: ${frames} frames (${loop}s @ ${FPS}fps) -> ${outDir}`);
     ws.close();
 } finally {
     chrome.kill();
