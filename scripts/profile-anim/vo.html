@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>GeroEngine · Virtual Omics (GIF source)</title>
+<!--
+  Frame source for profile/assets/virtual-omics-{light,dark}.gif.
+  Port of aginglab.com/assets/js/hero.js (vo-panel) with a deterministic clock:
+  capture.mjs calls renderAt(t) for every frame and screenshots the page.
+  ?theme=dark switches the palette.
+-->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+:root {
+    --page: #ffffff;
+    --panel-c: #ffffff; --panel-m: rgba(255,255,255,.6); --panel-e: rgba(241,248,244,.7);
+    --line: #e4eae7; --ink: #0a1712; --ink-2: #2b3a34; --ink-3: #5d6d66; --ink-4: #93a19a;
+    --g-300: #7be0ae; --g-400: #2dc57f; --g-500: #10a564; --g-600: #0a8554; --g-700: #076b45;
+    --up: rgba(10,133,84,.85); --down: rgba(120,142,133,.75);
+    --dot: rgba(10,23,18,.09);
+    --card: rgba(255,255,255,.92); --card-on: #ffffff; --cap: rgba(255,255,255,.85);
+    --font: 'Pretendard Variable', Pretendard, -apple-system, 'Apple SD Gothic Neo', sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+}
+:root.dark {
+    --page: #0d1117;
+    --panel-c: #14231c; --panel-m: rgba(17,29,23,.96); --panel-e: #0f1914;
+    --line: #23362d; --ink: #e8f0eb; --ink-2: #cdd9d2; --ink-3: #93a19a; --ink-4: #6b7c74;
+    --g-300: #1f7a52; --g-400: #2dc57f; --g-500: #2dc57f; --g-600: #2dc57f; --g-700: #7be0ae;
+    --up: rgba(45,197,127,.9); --down: rgba(143,163,154,.7);
+    --dot: rgba(232,240,235,.07);
+    --card: #111d17; --card-on: #172a21; --cap: rgba(20,35,28,.92);
+}
+* { box-sizing: border-box; transition: none !important; animation: none !important; }
+html, body { margin: 0; background: var(--page); }
+body { font-family: var(--font); -webkit-font-smoothing: antialiased; }
+
+.vo-panel {
+    position: relative; width: 880px; height: 560px; overflow: hidden;
+    border-radius: 28px; border: 1px solid var(--line);
+    background: radial-gradient(ellipse at 50% 45%, var(--panel-c) 0%, var(--panel-m) 55%, var(--panel-e) 100%);
+}
+.vo-panel::before {
+    content: ""; position: absolute; inset: 0;
+    background-image: radial-gradient(var(--dot) 1px, transparent 1px);
+    background-size: 18px 18px;
+    -webkit-mask-image: radial-gradient(circle at 50% 50%, transparent 30%, #000 85%);
+    mask-image: radial-gradient(circle at 50% 50%, transparent 30%, #000 85%);
+    opacity: .6;
+}
+canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.vo-corner { position: absolute; width: 14px; height: 14px; border-color: var(--g-400); border-style: solid; opacity: .7; }
+.vo-corner.tl { top: 16px; left: 16px; border-width: 1.5px 0 0 1.5px; }
+.vo-corner.tr { top: 16px; right: 16px; border-width: 1.5px 1.5px 0 0; }
+.vo-corner.bl { bottom: 16px; left: 16px; border-width: 0 0 1.5px 1.5px; }
+.vo-corner.br { bottom: 16px; right: 16px; border-width: 0 1.5px 1.5px 0; }
+.vo-top {
+    position: absolute; top: 22px; left: 42px; right: 42px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .08em; color: var(--ink-3); text-transform: uppercase;
+}
+.vo-live { display: inline-flex; align-items: center; gap: 7px; color: var(--g-700); }
+.vo-live i { width: 7px; height: 7px; border-radius: 50%; background: var(--g-500); }
+.vo-caption {
+    position: absolute; left: 50%; top: 56px; transform: translateX(-50%);
+    padding: 6px 12px; border-radius: 999px;
+    background: var(--cap); border: 1px solid var(--line);
+    font-size: 12.5px; font-weight: 600; color: var(--ink-2); white-space: nowrap;
+}
+.vo-steps {
+    position: absolute; left: 22px; right: 22px; bottom: 22px;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+}
+.vo-step {
+    display: flex; flex-direction: column;
+    padding: 12px 14px 13px; border-radius: 14px;
+    background: var(--card); border: 1px solid var(--line);
+}
+.vo-step .n { font-family: var(--mono); font-size: 10.5px; color: var(--ink-4); letter-spacing: .08em; }
+.vo-step .t { font-size: 13.5px; font-weight: 650; color: var(--ink-2); margin: 2px 0 10px; letter-spacing: -.01em; }
+.vo-step .bar { height: 2px; margin-top: auto; background: var(--line); border-radius: 2px; overflow: hidden; }
+.vo-step .bar i { display: block; height: 100%; width: 0; background: var(--g-500); }
+.vo-step.is-on { border-color: var(--g-300); background: var(--card-on); }
+.vo-step.is-on .n { color: var(--g-600); }
+.vo-step.is-on .t { color: var(--ink); }
+
+/* side annotations (landscape layout only) */
+.anno { position: absolute; display: flex; flex-direction: column; gap: 3px; }
+.anno::before { content: ""; position: absolute; left: -14px; top: 4px; bottom: 4px; width: 1.5px; background: var(--g-400); }
+.anno .k { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; color: var(--g-600); text-transform: uppercase; }
+.anno strong { font-size: 15px; font-weight: 650; letter-spacing: -.01em; color: var(--ink); }
+.anno span.s { font-size: 12.5px; color: var(--ink-3); }
+.anno.in { left: 58px; top: 318px; }
+.anno.out { left: 690px; top: 176px; }
+.legend { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; font-size: 12px; color: var(--ink-3); }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+</style>
+</head>
+<body>
+<div class="vo-panel" id="panel">
+    <canvas id="cv"></canvas>
+    <span class="vo-corner tl"></span><span class="vo-corner tr"></span><span class="vo-corner bl"></span><span class="vo-corner br"></span>
+    <div class="vo-top"><span>GeroEngine · Virtual Omics</span><span class="vo-live"><i id="live"></i>Demo</span></div>
+    <div class="vo-caption" id="cap">투여 전 · 기준 세포 상태</div>
+
+    <div class="anno in" id="annoIn">
+        <span class="k">Input</span>
+        <strong>Compound A</strong>
+        <span class="s">10 μM · 24 h</span>
+    </div>
+    <div class="anno out" id="annoOut">
+        <span class="k" id="outK">Baseline</span>
+        <strong id="outT">투여 전 세포 상태</strong>
+        <span class="s" id="outS">실측 · measured</span>
+        <div class="legend" id="legend">
+            <span><i style="background:var(--up)"></i>발현 증가</span>
+            <span><i style="background:var(--down)"></i>발현 감소</span>
+        </div>
+    </div>
+
+    <div class="vo-steps">
+        <div class="vo-step"><div class="n">01 INPUT</div><div class="t">물질 · 용량 입력</div><div class="bar"><i></i></div></div>
+        <div class="vo-step"><div class="n">02 GENERATE</div><div class="t">오믹스 생성</div><div class="bar"><i></i></div></div>
+        <div class="vo-step"><div class="n">03 INTERPRET</div><div class="t">순위 · 근거 해석</div><div class="bar"><i></i></div></div>
+    </div>
+</div>
+
+<script>
+(function () {
+    'use strict';
+    var DARK = new URLSearchParams(location.search).get('theme') === 'dark';
+    if (DARK) document.documentElement.classList.add('dark');
+
+    // canvas palette (light = values from hero.js)
+    var TH = DARK ? {
+        part: [45, 197, 127], partA: [.25, .7], nuc: '123,224,174', nucA: .45,
+        glow: '16,165,100', glowA: [.16, .06], memb: '45,197,127', membA: .26, ripple: '45,197,127',
+        frame: '232,240,235', frameA: .10, off: [38, 54, 46], up: [45, 197, 127], down: [143, 163, 154],
+        hiUp: '45,197,127', hiWarn: '230,176,64', hiText: '8,20,14',
+        capFill: '22,38,30', capStroke: '45,197,127', dose: '45,197,127', scan: '45,197,127', scanLine: '45,197,127'
+    } : {
+        part: [10, 133, 84], partA: [.22, .68], nuc: '6,77,51', nucA: .5,
+        glow: '225,246,234', glowA: [.9, .35], memb: '10,133,84', membA: .16, ripple: '16,165,100',
+        frame: '10,23,18', frameA: .08, off: [214, 224, 219], up: [10, 133, 84], down: [120, 142, 133],
+        hiUp: '10,133,84', hiWarn: '176,131,22', hiText: '255,255,255',
+        capFill: '255,255,255', capStroke: '10,133,84', dose: '16,165,100', scan: '45,197,127', scanLine: '16,165,100'
+    };
+
+    var panel = document.getElementById('panel');
+    var cv = document.getElementById('cv');
+    var ctx = cv.getContext('2d');
+    var stepEls = panel.querySelectorAll('.vo-step');
+    var caption = document.getElementById('cap');
+
+    var annoIn = document.getElementById('annoIn'), annoOut = document.getElementById('annoOut');
+    var outK = document.getElementById('outK'), outT = document.getElementById('outT'), outS = document.getElementById('outS');
+    var legend = document.getElementById('legend');
+
+    var COLS = 24, ROWS = 18, N = COLS * ROWS;
+    var NUC = 120, DOSE = 26;
+    var GA = Math.PI * (3 - Math.sqrt(5));
+    var LOOP = 11.4;
+    var T_DOSE = 1.6, T_ABSORB = 3.0, T_MORPH = 3.5, T_SCAN = 5.3, T_HOLD = 7.6, T_BACK = 9.6;
+    var CAPTIONS = ['투여 전 · 기준 세포 상태', '물질 투여 · 용량과 시간 입력', 'GeroEngine · 유전자 변화 생성', '해석 · 효과 경로와 주의 신호'];
+    var LABELS = ['효과 경로 ↑', '주의 신호'];
+
+    var seed = 11;
+    function rnd() { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }
+    function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+    function ease(p) { return p < .5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2; }
+    function easeOut(p) { return 1 - Math.pow(1 - p, 3); }
+
+    var P = [];
+    for (var i = 0; i < N; i++) {
+        var y = 1 - (i + .5) / N * 2, r = Math.sqrt(1 - y * y), th = i * GA;
+        P.push({ x: Math.cos(th) * r, y: y, z: Math.sin(th) * r, gc: i % COLS, gr: (i / COLS) | 0, sx: 0, sy: 0, d: 0 });
+    }
+    var NP = [];
+    while (NP.length < NUC) {
+        var a = rnd() * 2 - 1, b = rnd() * 2 - 1, c = rnd() * 2 - 1;
+        if (a * a + b * b + c * c <= 1) NP.push({ x: a * .4, y: b * .4, z: c * .4 });
+    }
+    var DP = [];
+    for (var k = 0; k < DOSE; k++) DP.push({ u: rnd() * 2 - 1, v: rnd() * 2 - 1, tx: rnd() * 2 - 1, ty: rnd() * 2 - 1 });
+
+    var vals = new Float32Array(N), hiRow = 0, loRow = 0;
+    (function newValues() {
+        var s1 = rnd() * 6, s2 = rnd() * 6;
+        for (var r = 0; r < ROWS; r++) for (var c = 0; c < COLS; c++) {
+            var v = .62 * Math.sin(c * .42 + s1) * Math.cos(r * .36 + s2) + .55 * (rnd() - .5);
+            vals[r * COLS + c] = clamp(v, -1, 1);
+        }
+        hiRow = 2 + Math.floor(rnd() * (ROWS / 2 - 3));
+        loRow = ROWS / 2 + 1 + Math.floor(rnd() * (ROWS / 2 - 3));
+        for (var cc = 0; cc < COLS; cc++) {
+            vals[hiRow * COLS + cc] = clamp(.55 + .45 * rnd(), -1, 1);
+            vals[loRow * COLS + cc] = clamp(-.45 - .5 * rnd(), -1, 1);
+        }
+    })();
+
+    var W = 880, H = 560, dpr = window.devicePixelRatio || 1;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    var cx = W / 2, cy = H * .46, R = Math.min(W, H) * .27;
+    var cs = Math.min(W * .8 / COLS, H * .5 / ROWS);
+    var gx0 = cx - COLS * cs / 2, gy0 = cy - ROWS * cs / 2;
+
+    // one full turn per loop so the GIF loops seamlessly
+    function rotAt(t) { return 2 * Math.PI * t / LOOP; }
+
+    function project(t, wob) {
+        var rot = rotAt(t);
+        var cosA = Math.cos(rot), sinA = Math.sin(rot), tilt = .32, cosT = Math.cos(tilt), sinT = Math.sin(tilt);
+        for (var i = 0; i < N; i++) {
+            var p = P[i];
+            var rad = 1 + wob * .05 * Math.sin(t * 9 + p.y * 6);
+            var x1 = p.x * cosA + p.z * sinA, z1 = -p.x * sinA + p.z * cosA;
+            var y1 = p.y * cosT - z1 * sinT, z2 = p.y * sinT + z1 * cosT;
+            var ps = 1 / (1 - z2 * .28);
+            p.sx = cx + x1 * R * rad * ps;
+            p.sy = cy + y1 * R * rad * ps;
+            p.d = (z2 + 1) / 2;
+        }
+        return { cosA: cosA, sinA: sinA, cosT: cosT, sinT: sinT };
+    }
+
+    // grid assignment is fixed by the sphere's on-screen layout at T_MORPH
+    (function assign() {
+        project(T_MORPH, 0);
+        var idx = P.map(function (p, i) { return i; });
+        idx.sort(function (a, b) { return P[a].sx - P[b].sx; });
+        for (var c = 0; c < COLS; c++) {
+            var chunk = idx.slice(c * ROWS, (c + 1) * ROWS);
+            chunk.sort(function (a, b) { return P[a].sy - P[b].sy; });
+            for (var r = 0; r < ROWS; r++) { P[chunk[r]].gc = c; P[chunk[r]].gr = r; }
+        }
+    })();
+
+    function rr(x, y, w, h, rad) { ctx.beginPath(); ctx.roundRect(x, y, w, h, rad); }
+
+    function draw(t) {
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, W, H);
+
+        var g = 0;
+        if (t >= T_MORPH && t < T_SCAN) g = (t - T_MORPH) / (T_SCAN - T_MORPH);
+        else if (t >= T_SCAN && t < T_BACK) g = 1;
+        else if (t >= T_BACK) g = 1 - (t - T_BACK) / (LOOP - T_BACK);
+        g = clamp(g, 0, 1);
+
+        var wob = 0;
+        if (t > T_ABSORB && t < T_MORPH + 1) wob = Math.sin(clamp((t - T_ABSORB) / 1.5, 0, 1) * Math.PI);
+
+        var scan = 0;
+        if (t >= T_SCAN && t < T_BACK) scan = clamp((t - T_SCAN) / (T_HOLD - T_SCAN - .2), 0, 1);
+        else if (t >= T_BACK) scan = 1 - clamp((t - T_BACK) / .9, 0, 1);
+        var scanCol = scan * (COLS + 3);
+
+        var m = project(t, wob);
+
+        var cellA = 1 - g;
+        if (cellA > .01) {
+            var grd = ctx.createRadialGradient(cx - R * .25, cy - R * .3, R * .1, cx, cy, R * 1.15);
+            grd.addColorStop(0, 'rgba(' + TH.glow + ',' + (TH.glowA[0] * cellA) + ')');
+            grd.addColorStop(.7, 'rgba(' + TH.glow + ',' + (TH.glowA[1] * cellA) + ')');
+            grd.addColorStop(1, 'rgba(' + TH.glow + ',0)');
+            ctx.fillStyle = grd;
+            ctx.beginPath(); ctx.arc(cx, cy, R * 1.15, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = 'rgba(' + TH.memb + ',' + (TH.membA * cellA) + ')';
+            ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.arc(cx, cy, R * (1.07 + wob * .03), 0, Math.PI * 2); ctx.stroke();
+        }
+
+        if (t > T_ABSORB && t < T_ABSORB + 1.2) {
+            var q = (t - T_ABSORB) / 1.2;
+            ctx.strokeStyle = 'rgba(' + TH.ripple + ',' + (.45 * (1 - q)) + ')';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.arc(cx, cy, R * (1.05 + q * .45), 0, Math.PI * 2); ctx.stroke();
+        }
+
+        if (g > .01) {
+            ctx.strokeStyle = 'rgba(' + TH.frame + ',' + (TH.frameA * g) + ')';
+            ctx.lineWidth = 1;
+            rr(gx0 - 10, gy0 - 10, COLS * cs + 20, ROWS * cs + 20, 12); ctx.stroke();
+        }
+
+        drawParticles(0, g, scanCol);
+        if (cellA > .01) {
+            for (var n = 0; n < NUC; n++) {
+                var np = NP[n];
+                var nx = np.x * m.cosA + np.z * m.sinA, nz = -np.x * m.sinA + np.z * m.cosA;
+                var ny = np.y * m.cosT - nz * m.sinT;
+                ctx.fillStyle = 'rgba(' + TH.nuc + ',' + (TH.nucA * cellA) + ')';
+                ctx.beginPath(); ctx.arc(cx + nx * R, cy + ny * R, R * .012 + 1, 0, Math.PI * 2); ctx.fill();
+            }
+        }
+        drawParticles(1, g, scanCol);
+
+        if (t >= T_SCAN && t < T_HOLD) {
+            var sx = gx0 + Math.min(scanCol, COLS) * cs;
+            var lg = ctx.createLinearGradient(sx - 40, 0, sx, 0);
+            lg.addColorStop(0, 'rgba(' + TH.scan + ',0)');
+            lg.addColorStop(1, 'rgba(' + TH.scan + ',.22)');
+            ctx.fillStyle = lg;
+            ctx.fillRect(sx - 40, gy0 - 10, 40, ROWS * cs + 20);
+            ctx.fillStyle = 'rgba(' + TH.scanLine + ',.9)';
+            ctx.fillRect(sx, gy0 - 14, 1.5, ROWS * cs + 28);
+        }
+
+        if (t >= T_HOLD - .1 && t < T_BACK + .4) {
+            var h = clamp((t - T_HOLD + .1) / .6, 0, 1) * (t > T_BACK ? 1 - clamp((t - T_BACK) / .4, 0, 1) : 1);
+            hl(hiRow, TH.hiUp, LABELS[0], h);
+            hl(loRow, TH.hiWarn, LABELS[1], h);
+        }
+
+        if (t >= T_DOSE && t < T_ABSORB + .5) drawDose(t);
+
+        // DOM sync
+        var stage = t < T_MORPH ? 0 : t < T_HOLD ? 1 : 2;
+        for (var s = 0; s < stepEls.length; s++) stepEls[s].classList.toggle('is-on', s === stage);
+        var spans = [[0, T_MORPH], [T_MORPH, T_HOLD], [T_HOLD, LOOP]];
+        for (var bI = 0; bI < stepEls.length; bI++) {
+            var bar = stepEls[bI].querySelector('.bar i');
+            var pr = clamp((t - spans[bI][0]) / (spans[bI][1] - spans[bI][0]), 0, 1);
+            bar.style.width = (t < spans[bI][0] ? 0 : pr * 100) + '%';
+        }
+        var cap = t < T_DOSE ? 0 : t < T_MORPH ? 1 : t < T_HOLD ? 2 : 3;
+        caption.textContent = CAPTIONS[cap];
+        caption.style.opacity = fadeNear(t, [0, T_DOSE, T_MORPH, T_HOLD, LOOP]);
+
+        annoIn.style.opacity = .3 + .7 * window_(t, T_DOSE - .4, T_MORPH + .2, .35);
+        var isOut = t >= T_MORPH && t < T_BACK + .5;
+        outK.textContent = isOut ? 'Output' : 'Baseline';
+        outT.textContent = isOut ? '투여 후 유전자 변화 Δ' : '투여 전 세포 상태';
+        outS.textContent = isOut ? '생성 · generated' : '실측 · measured';
+        // dimmed only while the compound is going in; text swaps at T_MORPH and back after T_BACK
+        annoOut.style.opacity = (.3 + .7 * (1 - window_(t, T_DOSE, T_MORPH, .35))) * fadeNear(t, [T_MORPH, T_BACK + .5]);
+        legend.style.opacity = window_(t, T_SCAN, T_BACK + .5, .35);
+    }
+
+    // 1 inside [a, b], easing in/out over `f` seconds
+    function window_(t, a, b, f) { return clamp(Math.min((t - a) / f, (b - t) / f), 0, 1); }
+    function fadeNear(t, marks) {
+        var d = Infinity;
+        for (var i = 0; i < marks.length; i++) d = Math.min(d, Math.abs(t - marks[i]));
+        return clamp(d / .22, 0, 1);
+    }
+
+    function drawParticles(front, g, scanCol) {
+        for (var i = 0; i < N; i++) {
+            var p = P[i];
+            if ((p.d >= .5) !== !!front) continue;
+            var local = clamp(g * 1.55 - (p.gc / COLS) * .55, 0, 1);
+            var e = ease(local);
+            var gx = gx0 + p.gc * cs + cs * .1, gy = gy0 + p.gr * cs + cs * .1;
+            var x = p.sx + (gx - p.sx) * e;
+            var y = p.sy + (gy - p.sy) * e;
+
+            var a1 = TH.partA[0] + TH.partA[1] * p.d;
+            var c1 = TH.part;
+            var reveal = clamp(scanCol - p.gc, 0, 1);
+            var v = vals[p.gr * COLS + p.gc] * reveal;
+            var c2, a2;
+            if (reveal <= 0.001) { c2 = TH.off; a2 = 1; }
+            else if (v >= 0) { c2 = TH.up; a2 = .14 + .86 * v; }
+            else { c2 = TH.down; a2 = .14 + .66 * -v; }
+            var R_ = c1[0] + (c2[0] - c1[0]) * e, G_ = c1[1] + (c2[1] - c1[1]) * e, B_ = c1[2] + (c2[2] - c1[2]) * e, A_ = a1 + (a2 - a1) * e;
+            ctx.fillStyle = 'rgba(' + (R_ | 0) + ',' + (G_ | 0) + ',' + (B_ | 0) + ',' + A_.toFixed(3) + ')';
+
+            var dotR = (.9 + p.d * 1.5) * (R / 150);
+            if (e < .02) {
+                ctx.beginPath(); ctx.arc(x, y, dotR, 0, Math.PI * 2); ctx.fill();
+            } else {
+                var side = dotR * 2 + (cs * .8 - dotR * 2) * e;
+                rr(x - side / 2 * (1 - e), y - side / 2 * (1 - e), side, side, Math.max(1.5, dotR * (1 - e) + 2.2 * e));
+                ctx.fill();
+            }
+        }
+    }
+
+    function hl(row, col, label, a) {
+        if (a <= 0) return;
+        var y = gy0 + row * cs;
+        ctx.strokeStyle = 'rgba(' + col + ',' + (.9 * a) + ')';
+        ctx.lineWidth = 1.5;
+        rr(gx0 - 4, y - 2, COLS * cs + 6, cs + 2, 6); ctx.stroke();
+        ctx.font = '600 ' + Math.max(11, Math.round(cs * .78)) + 'px "Pretendard Variable", Pretendard, sans-serif';
+        var tw = ctx.measureText(label).width + 14;
+        var lx = gx0 + COLS * cs - tw + 4, ly = y - Math.round(cs * 1.15) - 4;
+        ctx.fillStyle = 'rgba(' + col + ',' + (.95 * a) + ')';
+        rr(lx, ly, tw, Math.round(cs * 1.05) + 2, 6); ctx.fill();
+        ctx.fillStyle = 'rgba(' + TH.hiText + ',' + a + ')';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, lx + 7, ly + (Math.round(cs * 1.05) + 2) / 2 + .5);
+    }
+
+    function drawDose(t) {
+        var p = clamp((t - T_DOSE) / (T_ABSORB - T_DOSE), 0, 1);
+        var e = easeOut(p);
+        var x0 = -40, x1 = cx - R * 1.32;
+        var x = x0 + (x1 - x0) * e, y = cy - R * .08;
+        var absorb = clamp((t - T_ABSORB) / .5, 0, 1);
+        var capA = 1 - absorb;
+        var w = R * .36, h = R * .15;
+        if (capA > 0) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(-.18);
+            ctx.fillStyle = 'rgba(' + TH.capFill + ',' + (.85 * capA) + ')';
+            ctx.strokeStyle = 'rgba(' + TH.capStroke + ',' + (.55 * capA) + ')';
+            ctx.lineWidth = 1.2;
+            rr(-w / 2, -h / 2, w, h, h / 2); ctx.fill(); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, -h / 2); ctx.lineTo(0, h / 2); ctx.stroke();
+            ctx.restore();
+        }
+        for (var i = 0; i < DOSE; i++) {
+            var d = DP[i];
+            var px = x + d.u * w * .38, py = y + d.v * h * .3;
+            if (absorb > 0) {
+                var tx = cx + d.tx * R * .7, ty = cy + d.ty * R * .7;
+                var ae = easeOut(absorb);
+                px += (tx - px) * ae; py += (ty - py) * ae;
+            }
+            ctx.fillStyle = 'rgba(' + TH.dose + ',' + (.85 * (1 - absorb * .8)) + ')';
+            ctx.beginPath(); ctx.arc(px, py, 1.6, 0, Math.PI * 2); ctx.fill();
+        }
+        if (p < 1) {
+            for (var j = 1; j < 7; j++) {
+                ctx.fillStyle = 'rgba(' + TH.dose + ',' + (.25 * (1 - j / 7)) + ')';
+                ctx.beginPath(); ctx.arc(x - w / 2 - j * 9, y + Math.sin(t * 6 + j) * 2, 1.4, 0, Math.PI * 2); ctx.fill();
+            }
+        }
+    }
+
+    window.LOOP = LOOP;
+    window.renderAt = function (t) { draw(((t % LOOP) + LOOP) % LOOP); return true; };
+
+    var sample = CAPTIONS.join('') + LABELS.join('') + '물질 용량 입력 오믹스 생성 순위 근거 해석 투여 전 후 세포 상태 유전자 변화 실측 생성 발현 증가 감소 Δ↑·μ';
+    Promise.all([
+        document.fonts.load('600 13px "Pretendard Variable"', sample),
+        document.fonts.load('650 15px "Pretendard Variable"', sample),
+        document.fonts.load('400 12px "Pretendard Variable"', sample),
+        document.fonts.load('400 11px "JetBrains Mono"', 'GEROENGINE VIRTUAL OMICS DEMO 01 INPUT 02 GENERATE 03 INTERPRET OUTPUT BASELINE'),
+        document.fonts.ready
+    ]).then(function () { draw(0); window.READY = true; });
+})();
+</script>
+</body>
+</html>
